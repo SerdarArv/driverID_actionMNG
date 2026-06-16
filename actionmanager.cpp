@@ -191,6 +191,13 @@ bool c_ActionManager::ControlBackupValue( void )
 					UpdateFlashFile( s_manager_info.backup.blocking_state );
 				}
 			}
+			else
+			{
+				ERR_PRINT( "Vehicle stop backup file size mismatch: %d", TAG, backup_file_size );
+				s_manager_info.backup.blocking_strategy = s_backup_t::e_BLOCKING_STRATEGY::REMOTE;
+				s_manager_info.backup.blocking_state = e_VEHICLE_STOP_STATES::NO_STOP_ACTION;
+				s_manager_info.backup.query_number = RANDOM_QUERY;
+			}
 
 			if( result == ARV_StatusTypeDef::ARV_OK  )												// dosyayi okuyabildik
 			{
@@ -223,7 +230,7 @@ bool c_ActionManager::ControlBackupValue( void )
 				DEBUG_PRINT( "Action Manager started because of backup value", TAG );
 				setStruct( m_data_struct );
 			}
-			if( c_ConfigSaveLoad::CloseFile( file, fd )== ARV_StatusTypeDef::ARV_OK )								// close file
+			if( c_ConfigSaveLoad::CloseFile( file, fd )== ARV_StatusTypeDef::ARV_OK && result == ARV_StatusTypeDef::ARV_OK )								// close file
 			{
 				return true;
 			}
