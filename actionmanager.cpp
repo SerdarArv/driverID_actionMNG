@@ -36,13 +36,6 @@ static const uint16_t c_QUEUESET_WAIT_TIME = 1000 / TICK_PERIOD_MS;
 static const uint8_t c_QUEUE_SIZE = 10;
 static const uint16_t c_RECEIVE_DATA_SEMAPHORE_WAIT_TIMEOUT = 10 / TICK_PERIOD_MS;
 
-#pragma pack( push, 1 )
-typedef struct {
-	uint8_t blocking_state;
-	uint16_t query_number;
-} s_legacy_backup_t;
-#pragma pack( pop )
-
 void VehicleStopTimerCB( osTimerId xTimer );
 
 /*!
@@ -60,7 +53,6 @@ c_ActionManager::c_ActionManager(c_SharedList * p_st_list, const char *p_name, e
 	m_struct_list->addInstance( e_CLASSES::DATA_VEHICLE_STOP,static_cast < c_StructBase * > ( this ) );
 	m_stop_timer = osApiTimerCreate( "VST", VEHICLE_STOP_TIMEOUT, osTimerOnce, this, VehicleStopTimerCB );
 	m_protocol = new c_ArvBinaryProtocol( p_st_list );
-	s_manager_info.backup.blocking_strategy = s_backup_t::e_BLOCKING_STRATEGY::REMOTE;
 	s_manager_info.backup.query_number = RANDOM_QUERY;
 	s_manager_info.backup.blocking_state = e_VEHICLE_STOP_STATES::NO_STOP_ACTION;
 	s_manager_info.relay_available = false;
@@ -142,8 +134,6 @@ bool c_ActionManager::ControlBackupValue( void )
 	ARV_StatusTypeDef result = ARV_StatusTypeDef::ARV_ERROR;
 	int8_t retry_cnt = 3;
 	spiffs_file fd = 0;
-	int32_t backup_file_size = 0;
-	s_legacy_backup_t legacy_backup = { 0 };
 	// control relay state
 	s_power_config_t pow_conf = m_struct_list->getInstance< s_power_config_t >( e_CLASSES::CONFIG_POWER )->getStruct();	// control relay power
 	if( !pow_conf.device_power_states.fields.RELAY_PWR )											// role aktif degilse anlami yok geri don
@@ -169,32 +159,7 @@ bool c_ActionManager::ControlBackupValue( void )
 		}
 		else if( fd > 0 )
 		{
-			backup_file_size = file->GetFileSize2( "vehiclestop.h" );
-			if( backup_file_size == (int32_t)sizeof( s_manager_info.backup ) )
-			{
-				result = file->Read( fd, &s_manager_info.backup, sizeof( s_manager_info.backup ) );		// read current backup format
-			}
-			else if( backup_file_size == (int32_t)sizeof( legacy_backup ) )
-			{
-				result = file->Read( fd, &legacy_backup, sizeof( legacy_backup ) );						// read legacy backup format
-				if( result == ARV_StatusTypeDef::ARV_OK )
-				{
-					// Flash backward compatibility: preserve old state/query and migrate to new format.
-					s_manager_info.backup.blocking_strategy = s_backup_t::e_BLOCKING_STRATEGY::REMOTE;
-					s_manager_info.backup.blocking_state = legacy_backup.blocking_state;
-					s_manager_info.backup.query_number = legacy_backup.query_number;
-					UpdateFlashFile( s_manager_info.backup.blocking_state );
-				}
-			}
-			else
-			{
-				result = ARV_StatusTypeDef::ARV_ERROR;
-				ERR_PRINT( "Vehicle stop backup file size mismatch: %d", TAG, backup_file_size );
-				s_manager_info.backup.blocking_strategy = s_backup_t::e_BLOCKING_STRATEGY::REMOTE;
-				s_manager_info.backup.blocking_state = e_VEHICLE_STOP_STATES::NO_STOP_ACTION;
-				s_manager_info.backup.query_number = RANDOM_QUERY;
-			}
-
+			result = file->Read( fd, &s_manager_info.backup, sizeof( s_manager_info.backup ) );		// read backup value
 			if( result == ARV_StatusTypeDef::ARV_OK  )												// dosyayi okuyabildik
 			{
 				if( s_manager_info.backup.blocking_state == e_VEHICLE_STOP_STATES::NO_STOP_ACTION )// resetten once aksiyon olmadı
@@ -226,7 +191,7 @@ bool c_ActionManager::ControlBackupValue( void )
 				DEBUG_PRINT( "Action Manager started because of backup value", TAG );
 				setStruct( m_data_struct );
 			}
-			if( c_ConfigSaveLoad::CloseFile( file, fd )== ARV_StatusTypeDef::ARV_OK && result == ARV_StatusTypeDef::ARV_OK )								// close file
+			if( c_ConfigSaveLoad::CloseFile( file, fd )== ARV_StatusTypeDef::ARV_OK )								// close file
 			{
 				return true;
 			}
