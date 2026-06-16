@@ -156,12 +156,6 @@ bool c_ActionManager::ControlBackupValue( void )
 	}
 
 	c_FileSystem *  file = c_FileSystem::GetInstance();
-	backup_file_size = file->GetFileSize2( "vehiclestop.h" );
-	if( backup_file_size <= 0 )
-	{
-		return false;
-	}
-
 	do {
 		Delay( 1000 );
 		retry_cnt--;
@@ -175,6 +169,7 @@ bool c_ActionManager::ControlBackupValue( void )
 		}
 		else if( fd > 0 )
 		{
+			backup_file_size = file->GetFileSize2( "vehiclestop.h" );
 			if( backup_file_size == (int32_t)sizeof( s_manager_info.backup ) )
 			{
 				result = file->Read( fd, &s_manager_info.backup, sizeof( s_manager_info.backup ) );		// read current backup format
@@ -193,6 +188,7 @@ bool c_ActionManager::ControlBackupValue( void )
 			}
 			else
 			{
+				result = ARV_StatusTypeDef::ARV_ERROR;
 				ERR_PRINT( "Vehicle stop backup file size mismatch: %d", TAG, backup_file_size );
 				s_manager_info.backup.blocking_strategy = s_backup_t::e_BLOCKING_STRATEGY::REMOTE;
 				s_manager_info.backup.blocking_state = e_VEHICLE_STOP_STATES::NO_STOP_ACTION;
